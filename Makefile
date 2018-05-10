@@ -15,4 +15,5 @@ vgaplay: vgaplay.o libosmo-fl2k.o
 
 clean:
 	-rm -f vgaplay.o
+	-rm -f libosmo-fl2k.o
 	-rm -f vgaplay
