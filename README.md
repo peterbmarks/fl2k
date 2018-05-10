@@ -19,6 +19,14 @@ can be modulated for things like WSPR.
 Just type:
 make
 
+# USB memory
+On ubunut you probably need increase the USB memory buffer by running:
+
+sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'
+
+See https://importgeek.wordpress.com/2017/02/26/increase-usbfs-memory-limit-in-ubuntu/
+for more info and how to add this to the grub command line so it's permanent.
+
 # Run
 Run locally.
 
