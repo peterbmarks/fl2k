@@ -65,14 +65,14 @@ int8_t *fmbuf = NULL;
 int8_t *buf1 = NULL;
 int8_t *buf2 = NULL;
 
-uint32_t samp_rate = 100000000;
+uint32_t samp_rate = 150000000;
+int carrier_freq = 7159000; // 97000000;
 
 /* default signal parameters */
 //#define PILOT_FREQ	19000	/* In Hz */
 //#define STEREO_CARRIER	38000	/* In Hz */
 
 int delta_freq = 75000;
-int carrier_freq = 97000000;
 int carrier_per_signal;
 int input_freq = 44100;
 int stereo_flag = 0;
@@ -426,9 +426,9 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)samp_rate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)carrier_freq/1000000);
-	fprintf(stderr, "Frequencies:\t%3.2f MHz, %3.2f MHz\n", 
-					(double)((samp_rate - carrier_freq) / 1000000.0),
-					(double)((samp_rate + carrier_freq) / 1000000.0));
+	//fprintf(stderr, "Frequencies:\t%3.2f MHz, %3.2f MHz\n", 
+	//				(double)((samp_rate - carrier_freq) / 1000000.0),
+	//				(double)((samp_rate + carrier_freq) / 1000000.0));
 
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_mutex_init(&fm_mutex, NULL);
