@@ -70,13 +70,14 @@ void usage(void)
 		"vgaplay, stripped down code for FL2K VGA dongles\n\n"
 		"Usage:"
 		"\t[-d device index (default: 0)]\n"
-		"\t[-c carrier frequency (default: 9.7 MHz)]\n"
-		"\t[-s samplerate in Hz (default: 100 MS/s)]\n"
+		"\t[-c carrier frequency (default: 7.159 MHz)]\n"
+		"\t[-s samplerate in Hz (default: 150 MS/s)]\n"
 		"./vgaplay -s 100e6 -c 10e6\n"
 	);
 	exit(1);
 }
 
+// Catches ^C and stops
 static void sighandler(int signum)
 {
 	fprintf(stderr, "Signal caught, exiting!\n");
@@ -94,6 +95,7 @@ static void sighandler(int signum)
 # define M_1_PI		0.31830988618379067154	/* 1/pi */
 # define M_2_PI		0.63661977236758134308	/* 2/pi */
 #endif
+
 #define DDS_2PI		(M_PI * 2)		/* 2 * Pi */
 #define DDS_3PI2	(M_PI_2 * 3)		/* 3/2 * pi */
 
@@ -146,7 +148,7 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	dds.phase = phase * ANG_INCR;
 	dds_set_freq(&dds, freq, 0);
 
-	/* Initialize sine table, prescaled for 8 bit signed integer */
+	// Initialize sine table, prescaled for 8 bit signed integer
 	if (!sine_table_init) {
 		double incr = 1.0 / (double)SIN_TABLE_LEN;
 		for (i = 0; i < SIN_TABLE_LEN; i++)
@@ -183,6 +185,7 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 
 /* Generate the radio signal using the pre-calculated frequency information
  * in the freq buffer */
+ // This runs in the fm_thread and modulates the carrier frequency
 static void *fm_worker(void *arg)
 {
 	register double freq;
@@ -287,32 +290,6 @@ void fm_modulator_mono(int use_rds)
 		lastfreq = modulate_sample(lastwritepos, lastfreq, sample);
 		lastwritepos = writepos++;
 		writepos %= BUFFER_SAMPLES;
-		/*
-		len = writelen(AUDIO_BUF_SIZE);
-		if (len > 1) {
-			len = fread(audio_buf, 2, len, file);
-
-			if (len == 0)
-				do_exit = 1;
-
-			for (i = 0; i < len; i++) {
-				sample = audio_buf[i] / 32767.0;
-
-				if (use_rds) {
-					sample *= 4;
-					sample += rds_samples[i];
-					sample /= 5;
-				}
-
-				// Modulate and buffer the sample 
-				lastfreq = modulate_sample(lastwritepos, lastfreq, sample);
-				lastwritepos = writepos++;
-				writepos %= BUFFER_SAMPLES;
-			}
-		} else {
-			pthread_cond_wait(&fm_cond, &fm_mutex);
-		}
-		*/
 	}
 	
 }
@@ -408,9 +385,6 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)samp_rate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)carrier_freq/1000000);
-	//fprintf(stderr, "Frequencies:\t%3.2f MHz, %3.2f MHz\n", 
-	//				(double)((samp_rate - carrier_freq) / 1000000.0),
-	//				(double)((samp_rate + carrier_freq) / 1000000.0));
 
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_mutex_init(&fm_mutex, NULL);
