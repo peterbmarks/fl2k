@@ -27,12 +27,12 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=4
+current_page=1
 FILE_NAME_0=433;Make;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2FMakefile;0;4
-FILE_NAME_1=2101;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2Fvgaplay.c;0;4
+FILE_NAME_1=251;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2Fvgaplay.c;0;4
 FILE_NAME_2=133;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2Flibosmo-fl2k.c;0;4
 FILE_NAME_3=917;C++;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2Fosmo-fl2k.h;0;4
-FILE_NAME_4=86;Markdown;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2FREADME.md;0;4
+FILE_NAME_4=381;Markdown;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDesktop%2Fvgaplay%2FREADME.md;0;4
 
 [VTE]
 last_dir=/home/marksp

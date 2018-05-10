@@ -6,7 +6,7 @@
  * 
  * On Ubunutu: sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'
  *
- * ./vgaplay  -s 130e6 -c 35e6 -i 44100 silence32PCM.raw 
+ * ./vgaplay  -s 130e6 -c 35e6 
  * 
  * Copyright (C) 2016-2018 by Steve Markgraf <steve@steve-m.de>
  *
