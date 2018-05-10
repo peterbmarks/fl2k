@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <osmo-fl2k_export.h>
+#include "osmo-fl2k.h"
 
 enum fl2k_error {
 	FL2K_SUCCESS = 0,
@@ -68,13 +68,13 @@ typedef struct fl2k_dev fl2k_dev_t;
 #define FL2K_BUF_LEN		(1280 * 1024)
 #define FL2K_XFER_LEN		(FL2K_BUF_LEN * 3)
 
-FL2K_API uint32_t fl2k_get_device_count(void);
+uint32_t fl2k_get_device_count(void);
 
-FL2K_API const char* fl2k_get_device_name(uint32_t index);
+const char* fl2k_get_device_name(uint32_t index);
 
-FL2K_API int fl2k_open(fl2k_dev_t **dev, uint32_t index);
+int fl2k_open(fl2k_dev_t **dev, uint32_t index);
 
-FL2K_API int fl2k_close(fl2k_dev_t *dev);
+int fl2k_close(fl2k_dev_t *dev);
 
 /* configuration functions */
 
@@ -86,7 +86,7 @@ FL2K_API int fl2k_close(fl2k_dev_t *dev);
  * 	  on host and USB controller
  * \return 0 on success, -EINVAL on invalid rate
  */
-FL2K_API int fl2k_set_sample_rate(fl2k_dev_t *dev, uint32_t target_freq);
+int fl2k_set_sample_rate(fl2k_dev_t *dev, uint32_t target_freq);
 
 /*!
  * Get actual sample rate the device is configured to.
@@ -94,7 +94,7 @@ FL2K_API int fl2k_set_sample_rate(fl2k_dev_t *dev, uint32_t target_freq);
  * \param dev the device handle given by fl2k_open()
  * \return 0 on error, sample rate in Hz otherwise
  */
-FL2K_API uint32_t fl2k_get_sample_rate(fl2k_dev_t *dev);
+uint32_t fl2k_get_sample_rate(fl2k_dev_t *dev);
 
 /* streaming functions */
 
@@ -110,7 +110,7 @@ typedef void(*fl2k_tx_cb_t)(fl2k_data_info_t *data_info);
  *		  set to 0 for default buffer count (4)
  * \return 0 on success
  */
-FL2K_API int fl2k_start_tx(fl2k_dev_t *dev, fl2k_tx_cb_t cb,
+int fl2k_start_tx(fl2k_dev_t *dev, fl2k_tx_cb_t cb,
 		     void *ctx, uint32_t buf_num);
 
 /*!
@@ -119,7 +119,7 @@ FL2K_API int fl2k_start_tx(fl2k_dev_t *dev, fl2k_tx_cb_t cb,
  * \param dev the device handle given by fl2k_open()
  * \return 0 on success
  */
-FL2K_API int fl2k_stop_tx(fl2k_dev_t *dev);
+int fl2k_stop_tx(fl2k_dev_t *dev);
 
 #ifdef __cplusplus
 }
