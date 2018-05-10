@@ -41,18 +41,13 @@ pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
 pthread_cond_t fm_cond;
 
-FILE *file;
 int8_t *txbuf = NULL;
 int8_t *fmbuf = NULL;
 int8_t *buf1 = NULL;
 int8_t *buf2 = NULL;
 
 uint32_t samp_rate = 150000000;
-int carrier_freq = 7159000; // 97000000;
-
-/* default signal parameters */
-//#define PILOT_FREQ	19000	/* In Hz */
-//#define STEREO_CARRIER	38000	/* In Hz */
+int carrier_freq = 7159000;
 
 int delta_freq = 75000;
 int carrier_per_signal;
@@ -406,11 +401,6 @@ int main(int argc, char **argv)
 	/* Calculate needed constants */
 	carrier_per_signal = samp_rate / input_freq;
 
-	/* Set RDS parameters */
-	//set_rds_pi(0x0dac);
-	//set_rds_ps("fl2k_fm");
-	//set_rds_rt("VGA FM transmitter");
-
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
 	sigact.sa_flags = 0;
@@ -424,9 +414,6 @@ int main(int argc, char **argv)
 
 out:
 	fl2k_close(dev);
-
-	if (file != stdin)
-		fclose(file);
 
 	free(freqbuf);
 	free(slopebuf);
