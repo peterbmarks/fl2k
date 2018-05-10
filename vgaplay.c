@@ -310,19 +310,14 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 int main(int argc, char **argv)
 {
 	int r, opt;
-	uint32_t buf_num = 0;
 	int dev_index = 0;
 	pthread_attr_t attr;
-	char *filename = NULL;
 	int option_index = 0;
-	int input_freq_specified = 0;
 
 	struct sigaction sigact, sigign;
 
 	static struct option long_options[] =
 	{
-		{"stereo", no_argument, &stereo_flag, 1},
-		{"rds",    no_argument, &rds_flag,    1},
 		{0, 0, 0, 0}
 	};
 
@@ -341,13 +336,6 @@ int main(int argc, char **argv)
 			break;
 		case 'c':
 			carrier_freq = (uint32_t)atof(optarg);
-			break;
-		case 'f':
-			delta_freq = (uint32_t)atof(optarg);
-			break;
-		case 'i':
-			input_freq = (uint32_t)atof(optarg);
-			input_freq_specified = 1;
 			break;
 		case 's':
 			samp_rate = (uint32_t)atof(optarg);
