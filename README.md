@@ -1,9 +1,12 @@
-#fl2k
-Using cheap VGA dongles as a digital to analog converter for ham radio
+# fl2k
+Use cheap VGA dongles as a digital to analog converter for ham radio
 
 Based on great work from https://osmocom.org/projects/osmo-fl2k/wiki
 
-#Objective
+This version is from https://github.com/peterbmarks/fl2k
+Blog post: http://blog.marxy.org/2018/04/first-play-with-osmo-fl2k-compatible.html
+
+# Objective
 
 I'm stripping back the supplied FM example and statically linking
 the library code to make it easy to play with.
@@ -11,12 +14,12 @@ the library code to make it easy to play with.
 Longer term I'd like to be able to generate a decent HF signal that
 can be modulated for things like WSPR.
 
-#Build
+# Build
 
 Just type:
 make
 
-#Run
+# Run
 Run locally.
 
 ./vgaplay  -s 130e6 -c 7e6 
