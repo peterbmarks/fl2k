@@ -117,15 +117,25 @@ def wspr_encode(callsign, locator, dbm):
     symbols = [s + 2*x for s, x in zip(SYNC, interleaved)]
     return symbols
 
+#http://g4jnt.com/Coding/WSPR_Coding_Process.pdf
+def tx_frequency(base_freq, code):
+    freq = base_freq + (code*1.4648)
+    return freq
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 4:
-        print('Usage: %s callsign locator dbm' % sys.argv[0])
+    if len(sys.argv) < 4:
+        print('Usage: %s callsign locator dbm [base_freq]' % sys.argv[0])
         sys.exit(1)
     callsign = sys.argv[1]
     locator = sys.argv[2]
     dbm = int(sys.argv[3])
     print('{%s}' % ','.join(
         str(x) for x in wspr_encode(callsign, locator, dbm)))
+    if len(sys.argv) == 5:
+        base_freq = float(sys.argv[4])
+        print("base_freq = %fHz" % base_freq)
+        for code in wspr_encode(callsign, locator, dbm):
+            print(tx_frequency(base_freq, code))
+
 
