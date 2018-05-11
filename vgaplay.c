@@ -54,7 +54,6 @@ int gCarrierPerSignal;
 int gAudioInputSampleRate = 44100;
 
 double *gFrequencyBuffer; 
-double *gSlopeBuffer; 
 int gBufferWritepos, gBufferReadpos;
 
 void usage(void)
@@ -183,97 +182,24 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
  // This runs in the fm_thread and modulates the carrier frequency
 static void *fm_worker(void *arg)
 {
-	register double freq;
-	register double tmp;
 	dds_t carrier;
-	int8_t *tmp_ptr;
-	uint32_t len = 0;
-	uint32_t readlen, remaining;
-	int buf_prefilled = 0;
 
-	/* Prepare the oscillators */
+	// Prepare the DDS oscillator
 	carrier = dds_init(gSampleRate, gCarrierFrequency, 0);
-
+	// fill the transmit buffer with sine values
+	dds_real_buf(&carrier, gTransmitBuffer, FL2K_BUF_LEN);
+	
 	while (!do_exit) {
-		dds_set_freq(&carrier, gCarrierFrequency, 0.0);
-		
-		// void dds_set_freq(dds_t *dds, double freq, double fslope)
-		//dds_set_freq(&carrier, gFrequencyBuffer[gBufferReadpos], gSlopeBuffer[gBufferReadpos]);
-		gBufferReadpos++;
-		gBufferReadpos &= BUFFER_SAMPLES_MASK;
-
-		// check if we reach the end of the buffer 
-		if ((len + gCarrierPerSignal) > FL2K_BUF_LEN) {
-			readlen = FL2K_BUF_LEN - len;
-			remaining = gCarrierPerSignal - readlen;
-			dds_real_buf(&carrier, &gFmBuffer[len], readlen);
-
-			if (buf_prefilled) {
-				// swap gFmBuffer and gTransmitBuffer buffers
-				tmp_ptr = gFmBuffer;
-				gFmBuffer = gTransmitBuffer;
-				gTransmitBuffer = tmp_ptr;
-				pthread_cond_wait(&cb_cond, &cb_mutex);
-			}
-
-			dds_real_buf(&carrier, gFmBuffer, remaining);
-			len = remaining;
-
-			buf_prefilled = 1;
-		} else {
-			dds_real_buf(&carrier, &gFmBuffer[len], gCarrierPerSignal);
-			len += gCarrierPerSignal;
-		}
-
-		pthread_cond_signal(&fm_cond);
+		// stay in this thread until they ^C out
 	}
 
 	pthread_exit(NULL);
 }
 
-int writelen(int maxlen)
-{
-	int rp = gBufferReadpos;
-	int len;
-	int r;
-
-	if (rp < gBufferWritepos)
-		rp += BUFFER_SAMPLES;
-
-	len = rp - gBufferWritepos;
-
-	r = len > maxlen ? maxlen : len;
-
-	return r;
-}
-
-double modulate_sample(int lastwritepos, double lastfreq, double sample)
-{
-	double freq, slope;
-
-	/* Calculate modulator frequency at this point to lessen
-	 * the calculations needed in the signal generator */
-	freq = sample * gDeltaFrequency;
-	freq += gCarrierFrequency;
-
-	/* What we do here is calculate a linear "slope" from
-	the previous sample to this one. This is then used by
-	the modulator to gently increase/decrease the frequency
-	with each sample without the need to recalculate
-	the dds parameters. In fact this gives us a very
-	efficient and pretty good interpolation filter. */
-	slope = freq - lastfreq;
-	slope /= gCarrierPerSignal;
-	gSlopeBuffer[lastwritepos] = slope;
-	gFrequencyBuffer[gBufferWritepos] = freq;
-
-	return freq;
-}
-
 // The main loop during transmission
 // I'm hacking this to no longer do FM, just a nice clean carrier (I hope)
 // Now just sits here wrapping the buffer write position back to the start
-void fm_modulator_mono()
+void wrap_sine_buffer_position_until_exit()
 {
 	while (!do_exit) {
 		gBufferWritepos %= BUFFER_SAMPLES;
@@ -355,7 +281,6 @@ int main(int argc, char **argv)
 
 	/* Decoded audio */
 	gFrequencyBuffer = malloc(BUFFER_SAMPLES * sizeof(double));
-	gSlopeBuffer = malloc(BUFFER_SAMPLES * sizeof(double));
 	gBufferReadpos = 0;
 	gBufferWritepos = 1;
 
@@ -393,6 +318,7 @@ int main(int argc, char **argv)
 
 	/* Calculate needed constants */
 	gCarrierPerSignal = gSampleRate / gAudioInputSampleRate;
+	gCarrierPerSignal = 1;
 
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -403,13 +329,12 @@ int main(int argc, char **argv)
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigign, NULL);
 
-	fm_modulator_mono();
+	wrap_sine_buffer_position_until_exit();	// loops here until signal
 
 out:
 	fl2k_close(dev);
 
 	free(gFrequencyBuffer);
-	free(gSlopeBuffer);
 	free(gBuffer1);
 	free(gBuffer2);
 
