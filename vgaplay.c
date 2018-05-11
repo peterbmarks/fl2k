@@ -41,20 +41,20 @@ pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
 pthread_cond_t fm_cond;
 
-int8_t *txbuf = NULL;
-int8_t *fmbuf = NULL;
-int8_t *buf1 = NULL;
-int8_t *buf2 = NULL;
+int8_t *gTransmitBuffer = NULL;
+int8_t *gFmBuffer = NULL;
+int8_t *gBuffer1 = NULL;
+int8_t *gBuffer2 = NULL;
 
-uint32_t samp_rate = 150000000;
-int carrier_freq = 7159000;
+uint32_t gSampleRate = 150000000;
+int gCarrierFrequency = 7159000;
 
-int delta_freq = 75000;
-int carrier_per_signal;
-int input_freq = 44100;
+int gDeltaFrequency = 75000;
+int gCarrierPerSignal;
+int gAudioInputSampleRate = 44100;
 
-double *freqbuf; 
-double *slopebuf; 
+double *gFrequencyBuffer; 
+double *gSlopeBuffer; 
 int gBufferWritepos, gBufferReadpos;
 
 void usage(void)
@@ -192,37 +192,37 @@ static void *fm_worker(void *arg)
 	int buf_prefilled = 0;
 
 	/* Prepare the oscillators */
-	carrier = dds_init(samp_rate, carrier_freq, 0);
+	carrier = dds_init(gSampleRate, gCarrierFrequency, 0);
 
 	while (!do_exit) {
-		dds_set_freq(&carrier, carrier_freq, 0.0);
+		dds_set_freq(&carrier, gCarrierFrequency, 0.0);
 		
 		// void dds_set_freq(dds_t *dds, double freq, double fslope)
-		//dds_set_freq(&carrier, freqbuf[gBufferReadpos], slopebuf[gBufferReadpos]);
+		//dds_set_freq(&carrier, gFrequencyBuffer[gBufferReadpos], gSlopeBuffer[gBufferReadpos]);
 		gBufferReadpos++;
 		gBufferReadpos &= BUFFER_SAMPLES_MASK;
 
 		// check if we reach the end of the buffer 
-		if ((len + carrier_per_signal) > FL2K_BUF_LEN) {
+		if ((len + gCarrierPerSignal) > FL2K_BUF_LEN) {
 			readlen = FL2K_BUF_LEN - len;
-			remaining = carrier_per_signal - readlen;
-			dds_real_buf(&carrier, &fmbuf[len], readlen);
+			remaining = gCarrierPerSignal - readlen;
+			dds_real_buf(&carrier, &gFmBuffer[len], readlen);
 
 			if (buf_prefilled) {
-				// swap fmbuf and txbuf buffers
-				tmp_ptr = fmbuf;
-				fmbuf = txbuf;
-				txbuf = tmp_ptr;
+				// swap gFmBuffer and gTransmitBuffer buffers
+				tmp_ptr = gFmBuffer;
+				gFmBuffer = gTransmitBuffer;
+				gTransmitBuffer = tmp_ptr;
 				pthread_cond_wait(&cb_cond, &cb_mutex);
 			}
 
-			dds_real_buf(&carrier, fmbuf, remaining);
+			dds_real_buf(&carrier, gFmBuffer, remaining);
 			len = remaining;
 
 			buf_prefilled = 1;
 		} else {
-			dds_real_buf(&carrier, &fmbuf[len], carrier_per_signal);
-			len += carrier_per_signal;
+			dds_real_buf(&carrier, &gFmBuffer[len], gCarrierPerSignal);
+			len += gCarrierPerSignal;
 		}
 
 		pthread_cond_signal(&fm_cond);
@@ -253,8 +253,8 @@ double modulate_sample(int lastwritepos, double lastfreq, double sample)
 
 	/* Calculate modulator frequency at this point to lessen
 	 * the calculations needed in the signal generator */
-	freq = sample * delta_freq;
-	freq += carrier_freq;
+	freq = sample * gDeltaFrequency;
+	freq += gCarrierFrequency;
 
 	/* What we do here is calculate a linear "slope" from
 	the previous sample to this one. This is then used by
@@ -263,9 +263,9 @@ double modulate_sample(int lastwritepos, double lastfreq, double sample)
 	the dds parameters. In fact this gives us a very
 	efficient and pretty good interpolation filter. */
 	slope = freq - lastfreq;
-	slope /= carrier_per_signal;
-	slopebuf[lastwritepos] = slope;
-	freqbuf[gBufferWritepos] = freq;
+	slope /= gCarrierPerSignal;
+	gSlopeBuffer[lastwritepos] = slope;
+	gFrequencyBuffer[gBufferWritepos] = freq;
 
 	return freq;
 }
@@ -277,14 +277,14 @@ void fm_modulator_mono()
 	unsigned int i;
 	size_t len;
 	double freq;
-	double lastfreq = carrier_freq;
+	double lastfreq = gCarrierFrequency;
 	int16_t audio_buf[AUDIO_BUF_SIZE];
 	uint32_t lastwritepos = gBufferWritepos;
 	double sample;
 
 	while (!do_exit) {
 		// Modulate and buffer the sample 
-		lastfreq = carrier_freq;
+		lastfreq = gCarrierFrequency;
 		lastwritepos = gBufferWritepos++;
 		gBufferWritepos %= BUFFER_SAMPLES;
 	}
@@ -301,7 +301,7 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 	pthread_cond_signal(&cb_cond);
 
 	data_info->sampletype_signed = 1;
-	data_info->r_buf = (char *)txbuf;	// in to red channel buffer
+	data_info->r_buf = (char *)gTransmitBuffer;	// in to red channel buffer
 }
 
 int main(int argc, char **argv)
@@ -332,10 +332,10 @@ int main(int argc, char **argv)
 			dev_index = (uint32_t)atoi(optarg);
 			break;
 		case 'c':
-			carrier_freq = (uint32_t)atof(optarg);
+			gCarrierFrequency = (uint32_t)atof(optarg);
 			break;
 		case 's':
-			samp_rate = (uint32_t)atof(optarg);
+			gSampleRate = (uint32_t)atof(optarg);
 			break;
 		default:
 			usage();
@@ -352,24 +352,24 @@ int main(int argc, char **argv)
 	}
 
 	/* allocate buffer */
-	buf1 = malloc(FL2K_BUF_LEN);
-	buf2 = malloc(FL2K_BUF_LEN);
-	if (!buf1 || !buf2) {
+	gBuffer1 = malloc(FL2K_BUF_LEN);
+	gBuffer2 = malloc(FL2K_BUF_LEN);
+	if (!gBuffer1 || !gBuffer2) {
 		fprintf(stderr, "malloc error!\n");
 		exit(1);
 	}
 
-	fmbuf = buf1;
-	txbuf = buf2;
+	gFmBuffer = gBuffer1;
+	gTransmitBuffer = gBuffer2;
 
 	/* Decoded audio */
-	freqbuf = malloc(BUFFER_SAMPLES * sizeof(double));
-	slopebuf = malloc(BUFFER_SAMPLES * sizeof(double));
+	gFrequencyBuffer = malloc(BUFFER_SAMPLES * sizeof(double));
+	gSlopeBuffer = malloc(BUFFER_SAMPLES * sizeof(double));
 	gBufferReadpos = 0;
 	gBufferWritepos = 1;
 
-	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)samp_rate/1000000);
-	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)carrier_freq/1000000);
+	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
+	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
 
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_mutex_init(&fm_mutex, NULL);
@@ -393,15 +393,15 @@ int main(int argc, char **argv)
 	r = fl2k_start_tx(dev, fl2k_callback, NULL, 0);
 
 	/* Set the sample rate */
-	r = fl2k_set_sample_rate(dev, samp_rate);
+	r = fl2k_set_sample_rate(dev, gSampleRate);
 	if (r < 0)
 		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
 
 	/* read back actual frequency */
-	samp_rate = fl2k_get_sample_rate(dev);
+	gSampleRate = fl2k_get_sample_rate(dev);
 
 	/* Calculate needed constants */
-	carrier_per_signal = samp_rate / input_freq;
+	gCarrierPerSignal = gSampleRate / gAudioInputSampleRate;
 
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -417,10 +417,10 @@ int main(int argc, char **argv)
 out:
 	fl2k_close(dev);
 
-	free(freqbuf);
-	free(slopebuf);
-	free(buf1);
-	free(buf2);
+	free(gFrequencyBuffer);
+	free(gSlopeBuffer);
+	free(gBuffer1);
+	free(gBuffer2);
 
 	return 0;
 }
