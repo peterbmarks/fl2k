@@ -52,12 +52,10 @@ int carrier_freq = 7159000;
 int delta_freq = 75000;
 int carrier_per_signal;
 int input_freq = 44100;
-int stereo_flag = 0;
-int rds_flag = 0;
 
 double *freqbuf; 
 double *slopebuf; 
-int writepos, readpos;
+int gBufferWritepos, gBufferReadpos;
 
 void usage(void)
 {
@@ -99,7 +97,7 @@ static void sighandler(int signum)
 #define SIN_TABLE_LEN	(1 << SIN_TABLE_ORDER)
 #define ANG_INCR	(0xffffffff / DDS_2PI)
 
-int8_t sine_table[SIN_TABLE_LEN];
+int8_t sine_table[SIN_TABLE_LEN];	// big table of sin values for DDS
 int sine_table_init = 0;
 
 typedef struct {
@@ -124,6 +122,7 @@ inline double dds_getphase(dds_t *dds)
 // was inline 
 void dds_set_freq(dds_t *dds, double freq, double fslope)
 {
+	// printf("dds_set_freq(%f, slope=%f)\n", freq, fslope);
 	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 
@@ -155,6 +154,7 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	return dds;
 }
 
+// return the next value from the sine table
 int8_t dds_real(dds_t *dds)
 {
 	int tmp;
@@ -168,7 +168,7 @@ int8_t dds_real(dds_t *dds)
 	return sine_table[tmp];
 }
 
-// was inline 
+// copy count sine samples from sine table into buf 
 void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 {
 	int i;
@@ -195,18 +195,21 @@ static void *fm_worker(void *arg)
 	carrier = dds_init(samp_rate, carrier_freq, 0);
 
 	while (!do_exit) {
-		dds_set_freq(&carrier, freqbuf[readpos], slopebuf[readpos]);
-		readpos++;
-		readpos &= BUFFER_SAMPLES_MASK;
+		dds_set_freq(&carrier, carrier_freq, 0.0);
+		
+		// void dds_set_freq(dds_t *dds, double freq, double fslope)
+		//dds_set_freq(&carrier, freqbuf[gBufferReadpos], slopebuf[gBufferReadpos]);
+		gBufferReadpos++;
+		gBufferReadpos &= BUFFER_SAMPLES_MASK;
 
-		/* check if we reach the end of the buffer */
+		// check if we reach the end of the buffer 
 		if ((len + carrier_per_signal) > FL2K_BUF_LEN) {
 			readlen = FL2K_BUF_LEN - len;
 			remaining = carrier_per_signal - readlen;
 			dds_real_buf(&carrier, &fmbuf[len], readlen);
 
 			if (buf_prefilled) {
-				/* swap buffers */
+				// swap fmbuf and txbuf buffers
 				tmp_ptr = fmbuf;
 				fmbuf = txbuf;
 				txbuf = tmp_ptr;
@@ -230,14 +233,14 @@ static void *fm_worker(void *arg)
 
 int writelen(int maxlen)
 {
-	int rp = readpos;
+	int rp = gBufferReadpos;
 	int len;
 	int r;
 
-	if (rp < writepos)
+	if (rp < gBufferWritepos)
 		rp += BUFFER_SAMPLES;
 
-	len = rp - writepos;
+	len = rp - gBufferWritepos;
 
 	r = len > maxlen ? maxlen : len;
 
@@ -262,29 +265,28 @@ double modulate_sample(int lastwritepos, double lastfreq, double sample)
 	slope = freq - lastfreq;
 	slope /= carrier_per_signal;
 	slopebuf[lastwritepos] = slope;
-	freqbuf[writepos] = freq;
+	freqbuf[gBufferWritepos] = freq;
 
 	return freq;
 }
 
 // The main loop during transmission
 // I'm hacking this to no longer do FM, just a nice clean carrier (I hope)
-void fm_modulator_mono(int use_rds)
+void fm_modulator_mono()
 {
 	unsigned int i;
 	size_t len;
 	double freq;
 	double lastfreq = carrier_freq;
 	int16_t audio_buf[AUDIO_BUF_SIZE];
-	uint32_t lastwritepos = writepos;
+	uint32_t lastwritepos = gBufferWritepos;
 	double sample;
-	double rds_samples[AUDIO_BUF_SIZE];
 
 	while (!do_exit) {
 		// Modulate and buffer the sample 
-		lastfreq = modulate_sample(lastwritepos, lastfreq, sample);
-		lastwritepos = writepos++;
-		writepos %= BUFFER_SAMPLES;
+		lastfreq = carrier_freq;
+		lastwritepos = gBufferWritepos++;
+		gBufferWritepos %= BUFFER_SAMPLES;
 	}
 	
 }
@@ -299,7 +301,7 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 	pthread_cond_signal(&cb_cond);
 
 	data_info->sampletype_signed = 1;
-	data_info->r_buf = (char *)txbuf;
+	data_info->r_buf = (char *)txbuf;	// in to red channel buffer
 }
 
 int main(int argc, char **argv)
@@ -363,8 +365,8 @@ int main(int argc, char **argv)
 	/* Decoded audio */
 	freqbuf = malloc(BUFFER_SAMPLES * sizeof(double));
 	slopebuf = malloc(BUFFER_SAMPLES * sizeof(double));
-	readpos = 0;
-	writepos = 1;
+	gBufferReadpos = 0;
+	gBufferWritepos = 1;
 
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)samp_rate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)carrier_freq/1000000);
@@ -410,7 +412,7 @@ int main(int argc, char **argv)
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigign, NULL);
 
-	fm_modulator_mono(rds_flag);
+	fm_modulator_mono();
 
 out:
 	fl2k_close(dev);
