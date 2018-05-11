@@ -6,6 +6,8 @@
 #
 # Robert Ostling SM0YSR
 # 2017-08-29
+#
+# Enhanced by Peter Marks VK2TPM to output frequencies
 
 ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ '
 ALPHABET_IDX = {c:i for i,c in enumerate(ALPHABET)}
@@ -133,9 +135,12 @@ if __name__ == '__main__':
     print('{%s}' % ','.join(
         str(x) for x in wspr_encode(callsign, locator, dbm)))
     if len(sys.argv) == 5:
+        print()
         base_freq = float(sys.argv[4])
+        symbol_length = 0.683 # seconds
         print("base_freq = %fHz" % base_freq)
         for code in wspr_encode(callsign, locator, dbm):
-            print(tx_frequency(base_freq, code))
+            # print(tx_frequency(base_freq, code))
+            print("./vgaplay -c %f -t %f" % (tx_frequency(base_freq, code), symbol_length))
 
 
