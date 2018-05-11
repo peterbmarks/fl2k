@@ -30,10 +30,9 @@
 #define BUFFER_SAMPLES		(1 << BUFFER_SAMPLES_SHIFT)
 #define BUFFER_SAMPLES_MASK	((1 << BUFFER_SAMPLES_SHIFT)-1)
 
-#define AUDIO_BUF_SIZE		1024
+fl2k_dev_t *gFl2kDevice = NULL;
 
-fl2k_dev_t *dev = NULL;
-int do_exit = 0;
+int gUserCancelled = 0;
 
 pthread_t fm_thread;
 pthread_mutex_t cb_mutex;
@@ -48,10 +47,6 @@ int8_t *gBuffer2 = NULL;
 
 uint32_t gSampleRate = 150000000;
 int gCarrierFrequency = 7159000;
-
-int gDeltaFrequency = 75000;
-int gCarrierPerSignal;
-int gAudioInputSampleRate = 44100;
 
 double *gFrequencyBuffer; 
 int gBufferWritepos, gBufferReadpos;
@@ -73,8 +68,8 @@ void usage(void)
 static void sighandler(int signum)
 {
 	fprintf(stderr, "Signal caught, exiting!\n");
-	fl2k_stop_tx(dev);
-	do_exit = 1;
+	fl2k_stop_tx(gFl2kDevice);
+	gUserCancelled = 1;
 	pthread_cond_signal(&fm_cond);
 }
 
@@ -189,7 +184,7 @@ static void *fm_worker(void *arg)
 	// fill the transmit buffer with sine values
 	dds_real_buf(&carrier, gTransmitBuffer, FL2K_BUF_LEN);
 	
-	while (!do_exit) {
+	while (!gUserCancelled) {
 		// stay in this thread until they ^C out
 	}
 
@@ -201,7 +196,7 @@ static void *fm_worker(void *arg)
 // Now just sits here wrapping the buffer write position back to the start
 void wrap_sine_buffer_position_until_exit()
 {
-	while (!do_exit) {
+	while (!gUserCancelled) {
 		gBufferWritepos %= BUFFER_SAMPLES;
 	}
 	
@@ -211,7 +206,7 @@ void wrap_sine_buffer_position_until_exit()
 void fl2k_callback(fl2k_data_info_t *data_info)
 {
 	if (data_info->device_error) {
-		do_exit = 1;
+		gUserCancelled = 1;
 		pthread_cond_signal(&fm_cond);
 	}
 
@@ -269,18 +264,12 @@ int main(int argc, char **argv)
 	}
 
 	/* allocate buffer */
-	gBuffer1 = malloc(FL2K_BUF_LEN);
-	gBuffer2 = malloc(FL2K_BUF_LEN);
-	if (!gBuffer1 || !gBuffer2) {
+	gTransmitBuffer = malloc(FL2K_BUF_LEN);
+	if (!gTransmitBuffer) {
 		fprintf(stderr, "malloc error!\n");
 		exit(1);
 	}
 
-	gFmBuffer = gBuffer1;
-	gTransmitBuffer = gBuffer2;
-
-	/* Decoded audio */
-	gFrequencyBuffer = malloc(BUFFER_SAMPLES * sizeof(double));
 	gBufferReadpos = 0;
 	gBufferWritepos = 1;
 
@@ -293,8 +282,8 @@ int main(int argc, char **argv)
 	pthread_cond_init(&fm_cond, NULL);
 	pthread_attr_init(&attr);
 
-	fl2k_open(&dev, (uint32_t)dev_index);
-	if (NULL == dev) {
+	fl2k_open(&gFl2kDevice, (uint32_t)dev_index);
+	if (NULL == gFl2kDevice) {
 		fprintf(stderr, "Failed to open fl2k device #%d.\n", dev_index);
 		goto out;
 	}
@@ -306,19 +295,17 @@ int main(int argc, char **argv)
 	}
 
 	pthread_attr_destroy(&attr);
-	r = fl2k_start_tx(dev, fl2k_callback, NULL, 0);
+	r = fl2k_start_tx(gFl2kDevice, fl2k_callback, NULL, 0);
 
 	/* Set the sample rate */
-	r = fl2k_set_sample_rate(dev, gSampleRate);
-	if (r < 0)
+	r = fl2k_set_sample_rate(gFl2kDevice, gSampleRate);
+	if (r < 0) {
 		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
+	}
 
 	/* read back actual frequency */
-	gSampleRate = fl2k_get_sample_rate(dev);
-
-	/* Calculate needed constants */
-	gCarrierPerSignal = gSampleRate / gAudioInputSampleRate;
-	gCarrierPerSignal = 1;
+	gSampleRate = fl2k_get_sample_rate(gFl2kDevice);
+	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
 
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -332,7 +319,7 @@ int main(int argc, char **argv)
 	wrap_sine_buffer_position_until_exit();	// loops here until signal
 
 out:
-	fl2k_close(dev);
+	fl2k_close(gFl2kDevice);
 
 	free(gFrequencyBuffer);
 	free(gBuffer1);
