@@ -86,12 +86,12 @@ static void sighandler(int signum)
 #define DDS_2PI		(M_PI * 2)		/* 2 * Pi */
 #define DDS_3PI2	(M_PI_2 * 3)		/* 3/2 * pi */
 
-#define SIN_TABLE_ORDER	8
+#define SIN_TABLE_ORDER	8	// 8 gives 256 values
 #define SIN_TABLE_SHIFT	(32 - SIN_TABLE_ORDER)
 #define SIN_TABLE_LEN	(1 << SIN_TABLE_ORDER)
 #define ANG_INCR	(0xffffffff / DDS_2PI)
 
-int8_t sine_table[SIN_TABLE_LEN];	// big table of sin values for DDS
+int8_t sine_table[SIN_TABLE_LEN];	// big table of sine values for DDS
 int sine_table_init = 0;
 
 typedef struct {
@@ -273,6 +273,7 @@ int main(int argc, char **argv)
 	gBufferReadpos = 0;
 	gBufferWritepos = 1;
 
+	fprintf(stderr, "Sine table length: %d\n", SIN_TABLE_LEN);
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
 
