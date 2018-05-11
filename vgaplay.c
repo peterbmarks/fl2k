@@ -41,14 +41,10 @@ pthread_cond_t cb_cond;
 pthread_cond_t fm_cond;
 
 int8_t *gTransmitBuffer = NULL;
-int8_t *gFmBuffer = NULL;
-int8_t *gBuffer1 = NULL;
-int8_t *gBuffer2 = NULL;
 
 uint32_t gSampleRate = 150000000;
 int gCarrierFrequency = 7159000;
 
-double *gFrequencyBuffer; 
 int gBufferWritepos, gBufferReadpos;
 
 void usage(void)
@@ -103,16 +99,6 @@ typedef struct {
 	unsigned long int phase_slope;
 } dds_t;
 
-inline void dds_setphase(dds_t *dds, double phase)
-{
-	dds->phase = phase * ANG_INCR;
-}
-
-inline double dds_getphase(dds_t *dds)
-{
-	return dds->phase / ANG_INCR;
-}
-
 // was inline 
 void dds_set_freq(dds_t *dds, double freq, double fslope)
 {
@@ -148,7 +134,7 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	return dds;
 }
 
-// return the next value from the sine table
+// return the next value from the sine table and increment the step
 int8_t dds_real(dds_t *dds)
 {
 	int tmp;
@@ -175,7 +161,7 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 /* Generate the radio signal using the pre-calculated frequency information
  * in the freq buffer */
  // This runs in the fm_thread and modulates the carrier frequency
-static void *fm_worker(void *arg)
+static void *tx_worker_thread(void *arg)
 {
 	dds_t carrier;
 
@@ -289,16 +275,16 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	r = pthread_create(&fm_thread, &attr, fm_worker, NULL);
+	r = pthread_create(&fm_thread, &attr, tx_worker_thread, NULL);
 	if (r < 0) {
-		fprintf(stderr, "Error spawning FM worker thread!\n");
+		fprintf(stderr, "Error spawning TX worker thread!\n");
 		goto out;
 	}
 
 	pthread_attr_destroy(&attr);
 	r = fl2k_start_tx(gFl2kDevice, fl2k_callback, NULL, 0);
 
-	/* Set the sample rate */
+	// Set the sample rate
 	r = fl2k_set_sample_rate(gFl2kDevice, gSampleRate);
 	if (r < 0) {
 		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
@@ -321,10 +307,6 @@ int main(int argc, char **argv)
 
 out:
 	fl2k_close(gFl2kDevice);
-
-	free(gFrequencyBuffer);
-	free(gBuffer1);
-	free(gBuffer2);
 
 	return 0;
 }
