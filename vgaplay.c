@@ -23,6 +23,7 @@
 
 #include <math.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #include "osmo-fl2k.h"
 
@@ -44,6 +45,9 @@ int8_t *gTransmitBuffer = NULL;
 
 uint32_t gSampleRate = 150000000;
 int gCarrierFrequency = 7159000;
+double gTimeOfTx;
+int gDidSpecifyTime = 0;
+long long gStartTimeMs;
 
 void usage(void)
 {
@@ -53,6 +57,7 @@ void usage(void)
 		"\t[-d device index (default: 0)]\n"
 		"\t[-c carrier frequency (default: 7.159 MHz)]\n"
 		"\t[-s samplerate in Hz (default: 150 MS/s)]\n"
+		"\t[-t time in seconds\n"
 		"./vgaplay -s 100e6 -c 10e6\n"
 	);
 	exit(1);
@@ -189,6 +194,14 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 	data_info->r_buf = (char *)gTransmitBuffer;	// in to red channel buffer
 }
 
+long long current_miliseconds() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
+
 int main(int argc, char **argv)
 {
 	int r, opt;
@@ -204,7 +217,7 @@ int main(int argc, char **argv)
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "d:c:f:i:s:", long_options, &option_index);
+		opt = getopt_long(argc, argv, "d:c:f:s:t:", long_options, &option_index);
 
 		/* end of options reached */
 		if (opt == -1)
@@ -221,6 +234,10 @@ int main(int argc, char **argv)
 			break;
 		case 's':
 			gSampleRate = (uint32_t)atof(optarg);
+			break;
+		case 't':
+			gTimeOfTx = (double)atof(optarg);
+			gDidSpecifyTime = 1;
 			break;
 		default:
 			usage();
@@ -246,6 +263,9 @@ int main(int argc, char **argv)
 	fprintf(stderr, "Sine table length: %d\n", SIN_TABLE_LEN);
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
+	if(gDidSpecifyTime) {
+		fprintf(stderr, "Time of TX:\t%f seconds\n", gTimeOfTx);
+	}
 
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_mutex_init(&fm_mutex, NULL);
@@ -287,8 +307,22 @@ int main(int argc, char **argv)
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigign, NULL);
 
+	gStartTimeMs = current_miliseconds();
+	long long finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
+	fprintf(stderr, "start ms = %lld until: %lld\n", gStartTimeMs, finishMs);
+	
 	while (!gUserCancelled) {
-		// keep going until cancelled
+		// keep going until cancelled or time expired
+		if(gDidSpecifyTime) {
+			long long nowMs = current_miliseconds();
+			// fprintf(stderr, "now ms = %lld end = %lld\n", nowMs, finishMs);
+			if(nowMs > finishMs) {
+				fprintf(stderr, "time expired\n");
+				fl2k_stop_tx(gFl2kDevice);
+				gUserCancelled = 1;
+				pthread_cond_signal(&fm_cond);
+			}
+		}
 	}
 out:
 	fl2k_close(gFl2kDevice);
