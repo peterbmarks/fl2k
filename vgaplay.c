@@ -6,7 +6,7 @@
  * 
  * On Ubunutu: sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'
  *
- * ./vgaplay  -s 130e6 -c 71e5
+ * ./vgaplay -s 130e6 -c 71e5
  * 
  * Copyright below
  */ 
@@ -44,8 +44,6 @@ int8_t *gTransmitBuffer = NULL;
 
 uint32_t gSampleRate = 150000000;
 int gCarrierFrequency = 7159000;
-
-int gBufferWritepos, gBufferReadpos;
 
 void usage(void)
 {
@@ -87,8 +85,8 @@ static void sighandler(int signum)
 #define SIN_TABLE_LEN	(1 << SIN_TABLE_ORDER)
 #define ANG_INCR	(0xffffffff / DDS_2PI)
 
-int8_t sine_table[SIN_TABLE_LEN];	// big table of sine values for DDS
-int sine_table_init = 0;
+int8_t gSineTable[SIN_TABLE_LEN];	// big table of sine values for DDS
+int gSineTableInitialised = 0;
 
 typedef struct {
 	double sample_freq;
@@ -123,12 +121,12 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	dds_set_freq(&dds, freq, 0);
 
 	// Initialize sine table, prescaled for 8 bit signed integer
-	if (!sine_table_init) {
+	if (!gSineTableInitialised) {
 		double incr = 1.0 / (double)SIN_TABLE_LEN;
 		for (i = 0; i < SIN_TABLE_LEN; i++)
-			sine_table[i] = sin(incr * i * DDS_2PI) * 127;
+			gSineTable[i] = sin(incr * i * DDS_2PI) * 127;
 
-		sine_table_init = 1;
+		gSineTableInitialised = 1;
 	}
 
 	return dds;
@@ -145,7 +143,7 @@ int8_t dds_real(dds_t *dds)
 
 	dds->phase_step += dds->phase_slope;
 
-	return sine_table[tmp];
+	return gSineTable[tmp];
 }
 
 // copy count sine samples from sine table into buf 
@@ -175,17 +173,6 @@ static void *tx_worker_thread(void *arg)
 	}
 
 	pthread_exit(NULL);
-}
-
-// The main loop during transmission
-// I'm hacking this to no longer do FM, just a nice clean carrier (I hope)
-// Now just sits here wrapping the buffer write position back to the start
-void wrap_sine_buffer_position_until_exit()
-{
-	while (!gUserCancelled) {
-		gBufferWritepos %= BUFFER_SAMPLES;
-	}
-	
 }
 
 // USB calls back to get the next buffer of data
@@ -256,9 +243,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	gBufferReadpos = 0;
-	gBufferWritepos = 1;
-
 	fprintf(stderr, "Sine table length: %d\n", SIN_TABLE_LEN);
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
@@ -303,8 +287,9 @@ int main(int argc, char **argv)
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigign, NULL);
 
-	wrap_sine_buffer_position_until_exit();	// loops here until signal
-
+	while (!gUserCancelled) {
+		// keep going until cancelled
+	}
 out:
 	fl2k_close(gFl2kDevice);
 
