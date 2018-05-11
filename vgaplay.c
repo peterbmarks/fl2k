@@ -272,25 +272,16 @@ double modulate_sample(int lastwritepos, double lastfreq, double sample)
 
 // The main loop during transmission
 // I'm hacking this to no longer do FM, just a nice clean carrier (I hope)
+// Now just sits here wrapping the buffer write position back to the start
 void fm_modulator_mono()
 {
-	unsigned int i;
-	size_t len;
-	double freq;
-	double lastfreq = gCarrierFrequency;
-	int16_t audio_buf[AUDIO_BUF_SIZE];
-	uint32_t lastwritepos = gBufferWritepos;
-	double sample;
-
 	while (!do_exit) {
-		// Modulate and buffer the sample 
-		lastfreq = gCarrierFrequency;
-		lastwritepos = gBufferWritepos++;
 		gBufferWritepos %= BUFFER_SAMPLES;
 	}
 	
 }
 
+// USB calls back to get the next buffer of data
 void fl2k_callback(fl2k_data_info_t *data_info)
 {
 	if (data_info->device_error) {
