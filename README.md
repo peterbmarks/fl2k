@@ -40,3 +40,5 @@ You can probably go up to about 150MS/s
 The closer the carrier frequency gets to half the sample rate,
 the more the signal becomes a square wave.
 
+Here's how the waveform looks at 7.159MHz with 150Ms/s
+![Beautiful CRO capture](https://raw.githubusercontent.com/peterbmarks/fl2k/master/defaultwaveform.png)
