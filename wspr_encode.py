@@ -140,7 +140,7 @@ if __name__ == '__main__':
         symbol_length = 0.683 # seconds
         print("base_freq = %fHz" % base_freq)
         for code in wspr_encode(callsign, locator, dbm):
-            # print(tx_frequency(base_freq, code))
-            print("./vgaplay -c %f -t %f" % (tx_frequency(base_freq, code), symbol_length))
+            print(tx_frequency(base_freq, code))
+            #print("./vgaplay -c %f -t %f" % (tx_frequency(base_freq, code), symbol_length))
 
 

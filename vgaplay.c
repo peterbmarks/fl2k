@@ -31,7 +31,18 @@
 #define BUFFER_SAMPLES		(1 << BUFFER_SAMPLES_SHIFT)
 #define BUFFER_SAMPLES_MASK	((1 << BUFFER_SAMPLES_SHIFT)-1)
 
+
+typedef struct {
+	double sample_freq;
+	double freq;
+	double fslope;
+	unsigned long int phase;
+	unsigned long int phase_step;
+	unsigned long int phase_slope;
+} dds_t;
+
 fl2k_dev_t *gFl2kDevice = NULL;
+dds_t gCarrierDds;
 
 int gUserCancelled = 0;
 
@@ -93,19 +104,11 @@ static void sighandler(int signum)
 int8_t gSineTable[SIN_TABLE_LEN];	// big table of sine values for DDS
 int gSineTableInitialised = 0;
 
-typedef struct {
-	double sample_freq;
-	double freq;
-	double fslope;
-	unsigned long int phase;
-	unsigned long int phase_step;
-	unsigned long int phase_slope;
-} dds_t;
 
 // was inline 
 void dds_set_freq(dds_t *dds, double freq, double fslope)
 {
-	// printf("dds_set_freq(%f, slope=%f)\n", freq, fslope);
+	fprintf(stderr, "dds_set_freq(%f, slope=%f)\n", freq, fslope);
 	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 
@@ -166,12 +169,10 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
  // This runs in the fm_thread and modulates the carrier frequency
 static void *tx_worker_thread(void *arg)
 {
-	dds_t carrier;
-
 	// Prepare the DDS oscillator
-	carrier = dds_init(gSampleRate, gCarrierFrequency, 0);
+	gCarrierDds = dds_init(gSampleRate, gCarrierFrequency, 0);
 	// fill the transmit buffer with sine values
-	dds_real_buf(&carrier, gTransmitBuffer, FL2K_BUF_LEN);
+	dds_real_buf(&gCarrierDds, gTransmitBuffer, FL2K_BUF_LEN);
 	
 	while (!gUserCancelled) {
 		// stay in this thread until they ^C out
@@ -208,7 +209,10 @@ int main(int argc, char **argv)
 	int dev_index = 0;
 	pthread_attr_t attr;
 	int option_index = 0;
-
+	FILE *frequencyFile = NULL;
+	char frequencyFileName[FILENAME_MAX + 1];
+	frequencyFileName[0] = '\0';
+	
 	struct sigaction sigact, sigign;
 
 	static struct option long_options[] =
@@ -239,6 +243,9 @@ int main(int argc, char **argv)
 			gTimeOfTx = (double)atof(optarg);
 			gDidSpecifyTime = 1;
 			break;
+		case 'f':
+			strcpy(frequencyFileName, optarg);
+			break;
 		default:
 			usage();
 			break;
@@ -266,7 +273,14 @@ int main(int argc, char **argv)
 	if(gDidSpecifyTime) {
 		fprintf(stderr, "Time of TX:\t%f seconds\n", gTimeOfTx);
 	}
-
+	if(strlen(frequencyFileName) > 3) {
+		fprintf(stderr, "Frequency file: %s\n", frequencyFileName);
+		frequencyFile = fopen(frequencyFileName, "r");
+		if(frequencyFile == NULL) {
+			fprintf(stderr, "Error opening file: %s\n", frequencyFileName);
+		}
+	}
+	
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_mutex_init(&fm_mutex, NULL);
 	pthread_cond_init(&cb_cond, NULL);
@@ -311,19 +325,35 @@ int main(int argc, char **argv)
 	long long finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
 	fprintf(stderr, "start ms = %lld until: %lld\n", gStartTimeMs, finishMs);
 	
+	char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+	
 	while (!gUserCancelled) {
-		// keep going until cancelled or time expired
-		if(gDidSpecifyTime) {
-			long long nowMs = current_miliseconds();
-			// fprintf(stderr, "now ms = %lld end = %lld\n", nowMs, finishMs);
-			if(nowMs > finishMs) {
-				fprintf(stderr, "time expired\n");
-				fl2k_stop_tx(gFl2kDevice);
-				gUserCancelled = 1;
-				pthread_cond_signal(&fm_cond);
-			}
+		if(frequencyFile) {
+			while(read = getline(&line, &len, frequencyFile) != -1 && !gUserCancelled) {
+				double frequency = atof(line);
+				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
+				dds_set_freq(&gCarrierDds, frequency, 0.0);
+				// keep going until cancelled or time expired
+				if(gDidSpecifyTime) {
+					long long nowMs = current_miliseconds();
+					// fprintf(stderr, "now ms = %lld end = %lld\n", nowMs, finishMs);
+					while(nowMs < finishMs && !gUserCancelled) {
+						nowMs = current_miliseconds();
+					}
+					fprintf(stderr, "time expired\n");
+					gStartTimeMs = current_miliseconds();
+					finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
+				}
+			} 
+			fprintf(stderr, "End of TX file\n");
+			fl2k_stop_tx(gFl2kDevice);
+			gUserCancelled = 1;
+			pthread_cond_signal(&fm_cond);
 		}
 	}
+
 out:
 	fl2k_close(gFl2kDevice);
 
