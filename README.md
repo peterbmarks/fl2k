@@ -39,7 +39,18 @@ Please fix the device permissions, e.g. by installing the udev rules file
 Build and install the software as documented [here](https://osmocom.org/projects/osmo-fl2k/wiki)
 
 # USB memory
-On ubunut you probably need increase the USB memory buffer by running:
+
+You'll get this error:
+```
+libusb: error [op_dev_mem_alloc] alloc dev mem failed errno 12
+Failed to allocate zerocopy buffer for transfer 4
+libusb: error [submit_bulk_transfer] submiturb failed error -1 errno=12
+Failed to submit transfer 0
+Please increase your allowed usbfs buffer size with the following command:
+echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb
+```
+
+On Ubuntu you'll need increase the USB memory buffer by running:
 
 ```
 sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'
