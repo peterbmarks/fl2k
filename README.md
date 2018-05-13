@@ -16,7 +16,10 @@ can be modulated for things like WSPR.
 
 # Build
 
-Just type:
+On Ubuntu you might need:
+sudo apt install git build-essential libusb-1.0-0-dev
+
+To build just type:
 make
 
 # USB memory
