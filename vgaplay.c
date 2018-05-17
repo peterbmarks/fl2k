@@ -112,7 +112,7 @@ int gSineTableInitialised = 0;
 // was inline 
 void dds_set_freq(dds_t *dds, double freq, double fslope)
 {
-	fprintf(stderr, "dds_set_freq(%f, slope=%f)\n", freq, fslope);
+	fprintf(stderr, "dds_set_freq(%f\n", freq);
 	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 
@@ -347,7 +347,9 @@ int main(int argc, char **argv)
 
 	gStartTimeMs = current_miliseconds();
 	long long finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
-	fprintf(stderr, "start ms = %lld until: %lld\n", gStartTimeMs, finishMs);
+	if(gDidSpecifyTime) {
+		fprintf(stderr, "start ms = %lld until: %lld\n", gStartTimeMs, finishMs);
+	}
 	
 	char * line = NULL;
     size_t len = 0;
