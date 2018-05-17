@@ -32,6 +32,7 @@
 #define BUFFER_SAMPLES_MASK	((1 << BUFFER_SAMPLES_SHIFT)-1)
 
 void dds_start(double frequency);
+void dds_stop();
 
 typedef struct {
 	double sample_freq;
@@ -79,7 +80,7 @@ void usage(void)
 static void sighandler(int signum)
 {
 	fprintf(stderr, "Signal caught, exiting!\n");
-	
+	dds_stop();
 	gUserCancelled = 1;
 }
 
