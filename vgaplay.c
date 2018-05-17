@@ -50,7 +50,6 @@ pthread_t fm_thread;
 pthread_mutex_t cb_mutex;
 pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
-pthread_cond_t fm_cond;
 
 int8_t *gTransmitBuffer = NULL;
 
@@ -69,6 +68,7 @@ void usage(void)
 		"\t[-c carrier frequency (default: 7.159 MHz)]\n"
 		"\t[-s samplerate in Hz (default: 150 MS/s)]\n"
 		"\t[-t time in seconds\n"
+		"\t[-f <filename> read frequency list from a file\n"
 		"./vgaplay -s 100e6 -c 10e6\n"
 	);
 	exit(1);
@@ -80,7 +80,6 @@ static void sighandler(int signum)
 	fprintf(stderr, "Signal caught, exiting!\n");
 	fl2k_stop_tx(gFl2kDevice);
 	gUserCancelled = 1;
-	pthread_cond_signal(&fm_cond);
 }
 
 /* DDS Functions */
@@ -186,7 +185,6 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 {
 	if (data_info->device_error) {
 		gUserCancelled = 1;
-		pthread_cond_signal(&fm_cond);
 	}
 
 	pthread_cond_signal(&cb_cond);
@@ -282,9 +280,7 @@ int main(int argc, char **argv)
 	}
 	
 	pthread_mutex_init(&cb_mutex, NULL);
-	pthread_mutex_init(&fm_mutex, NULL);
 	pthread_cond_init(&cb_cond, NULL);
-	pthread_cond_init(&fm_cond, NULL);
 	pthread_attr_init(&attr);
 
 	fl2k_open(&gFl2kDevice, (uint32_t)dev_index);
@@ -350,7 +346,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "End of TX file\n");
 			fl2k_stop_tx(gFl2kDevice);
 			gUserCancelled = 1;
-			pthread_cond_signal(&fm_cond);
 		}
 	}
 
