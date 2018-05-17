@@ -79,7 +79,7 @@ void usage(void)
 static void sighandler(int signum)
 {
 	fprintf(stderr, "Signal caught, exiting!\n");
-	fl2k_stop_tx(gFl2kDevice);
+	
 	gUserCancelled = 1;
 }
 
@@ -207,7 +207,7 @@ void dds_start(double frequency) {
 	pthread_attr_t attr;
 	struct sigaction sigact, sigign;
 	
-	
+	fprintf(stderr, "dds_start(%f)\n", frequency);
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_cond_init(&cb_cond, NULL);
 	pthread_attr_init(&attr);
@@ -231,6 +231,8 @@ void dds_start(double frequency) {
 	gSampleRate = fl2k_get_sample_rate(gFl2kDevice);
 	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
 
+	dds_set_freq(&gCarrierDds, frequency, 0.0);
+	
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
 	sigact.sa_flags = 0;
@@ -239,7 +241,12 @@ void dds_start(double frequency) {
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigign, NULL);
+}
 
+void dds_stop() {
+	fprintf(stderr, "dds_stop()\n");
+	fl2k_stop_tx(gFl2kDevice);
+	pthread_cancel(fm_thread);
 }
 
 int main(int argc, char **argv)
@@ -340,11 +347,13 @@ int main(int argc, char **argv)
 	
 	while (!gUserCancelled) {
 		if(frequencyFile) {
+			dds_stop();
 			while(read = getline(&line, &len, frequencyFile) != -1 && !gUserCancelled) {
 				double frequency = atof(line);
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
-				dds_set_freq(&gCarrierDds, frequency, 0.0);
+				
 				gCarrierFrequency = frequency;
+				dds_start(frequency);
 				// keep going until cancelled or time expired
 				if(gDidSpecifyTime) {
 					long long nowMs = current_miliseconds();
@@ -362,9 +371,8 @@ int main(int argc, char **argv)
 			gUserCancelled = 1;
 		}
 	}
-
 out:
-	fl2k_close(gFl2kDevice);
+	dds_stop();
 
 	return 0;
 }
