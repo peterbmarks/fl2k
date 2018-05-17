@@ -38,6 +38,12 @@ Please fix the device permissions, e.g. by installing the udev rules file
 
 Build and install the software as documented [here](https://osmocom.org/projects/osmo-fl2k/wiki)
 
+## macOS
+All builds just fine on macOS but you need libusb which I installed using [homebrew](https://brew.sh)
+```
+brew install libusb
+```
+
 # USB memory
 
 You'll get this error:

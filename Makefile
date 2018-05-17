@@ -1,5 +1,5 @@
 HEADERS = osmo-fl2k.h
-INCLUDES=-I/usr/include/libusb-1.0/
+INCLUDES=-I/usr/include/libusb-1.0/ -I/usr/local/Cellar/libusb/1.0.22/include/libusb-1.0/
 LDFLAGS=-lusb-1.0 -pthread -lm
 
 default: vgaplay

@@ -316,10 +316,6 @@ int main(int argc, char **argv)
 		usage();
 	}
 
-	if (gFl2kDeviceIndex < 0) {
-		exit(1);
-	}
-
 	/* allocate buffer */
 	gTransmitBuffer = malloc(FL2K_BUF_LEN);
 	if (!gTransmitBuffer) {
@@ -357,7 +353,7 @@ int main(int argc, char **argv)
 	
 	while (!gUserCancelled) {
 		if(frequencyFile) {
-			while(read = getline(&line, &len, frequencyFile) != -1 && !gUserCancelled) {
+			while((read = getline(&line, &len, frequencyFile)) != -1 && !gUserCancelled) {
 				double frequency = atof(line);
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
 				
