@@ -331,6 +331,7 @@ int main(int argc, char **argv)
 				double frequency = atof(line);
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
 				dds_set_freq(&gCarrierDds, frequency, 0.0);
+				gCarrierFrequency = frequency;
 				// keep going until cancelled or time expired
 				if(gDidSpecifyTime) {
 					long long nowMs = current_miliseconds();
