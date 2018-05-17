@@ -31,6 +31,7 @@
 #define BUFFER_SAMPLES		(1 << BUFFER_SAMPLES_SHIFT)
 #define BUFFER_SAMPLES_MASK	((1 << BUFFER_SAMPLES_SHIFT)-1)
 
+void dds_start(double frequency);
 
 typedef struct {
 	double sample_freq;
@@ -201,11 +202,51 @@ long long current_miliseconds() {
     return milliseconds;
 }
 
+void dds_start(double frequency) {
+	int r;
+	pthread_attr_t attr;
+	struct sigaction sigact, sigign;
+	
+	
+	pthread_mutex_init(&cb_mutex, NULL);
+	pthread_cond_init(&cb_cond, NULL);
+	pthread_attr_init(&attr);
+	
+	r = pthread_create(&fm_thread, &attr, tx_worker_thread, NULL);
+	if (r < 0) {
+		fprintf(stderr, "Error spawning TX worker thread!\n");
+		return;
+	}
+
+	pthread_attr_destroy(&attr);
+	r = fl2k_start_tx(gFl2kDevice, fl2k_callback, NULL, 0);
+
+	// Set the sample rate
+	r = fl2k_set_sample_rate(gFl2kDevice, gSampleRate);
+	if (r < 0) {
+		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
+	}
+
+	/* read back actual frequency */
+	gSampleRate = fl2k_get_sample_rate(gFl2kDevice);
+	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
+
+	sigact.sa_handler = sighandler;
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags = 0;
+	sigign.sa_handler = SIG_IGN;
+	sigaction(SIGINT, &sigact, NULL);
+	sigaction(SIGTERM, &sigact, NULL);
+	sigaction(SIGQUIT, &sigact, NULL);
+	sigaction(SIGPIPE, &sigign, NULL);
+
+}
+
 int main(int argc, char **argv)
 {
-	int r, opt;
+	int opt;
 	int dev_index = 0;
-	pthread_attr_t attr;
+	
 	int option_index = 0;
 	FILE *frequencyFile = NULL;
 	char frequencyFileName[FILENAME_MAX + 1];
@@ -279,43 +320,15 @@ int main(int argc, char **argv)
 		}
 	}
 	
-	pthread_mutex_init(&cb_mutex, NULL);
-	pthread_cond_init(&cb_cond, NULL);
-	pthread_attr_init(&attr);
-
 	fl2k_open(&gFl2kDevice, (uint32_t)dev_index);
+	
 	if (NULL == gFl2kDevice) {
 		fprintf(stderr, "Failed to open fl2k device #%d.\n", dev_index);
 		goto out;
 	}
-
-	r = pthread_create(&fm_thread, &attr, tx_worker_thread, NULL);
-	if (r < 0) {
-		fprintf(stderr, "Error spawning TX worker thread!\n");
-		goto out;
-	}
-
-	pthread_attr_destroy(&attr);
-	r = fl2k_start_tx(gFl2kDevice, fl2k_callback, NULL, 0);
-
-	// Set the sample rate
-	r = fl2k_set_sample_rate(gFl2kDevice, gSampleRate);
-	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
-	}
-
-	/* read back actual frequency */
-	gSampleRate = fl2k_get_sample_rate(gFl2kDevice);
-	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
-
-	sigact.sa_handler = sighandler;
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags = 0;
-	sigign.sa_handler = SIG_IGN;
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGQUIT, &sigact, NULL);
-	sigaction(SIGPIPE, &sigign, NULL);
+	fprintf(stderr, "Opened device\n");
+	
+	dds_start((double)gCarrierFrequency);
 
 	gStartTimeMs = current_miliseconds();
 	long long finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
