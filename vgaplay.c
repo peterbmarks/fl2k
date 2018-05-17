@@ -47,6 +47,7 @@ fl2k_dev_t *gFl2kDevice = NULL;
 dds_t gCarrierDds;
 
 int gUserCancelled = 0;
+int gTransmitTimeExpired = 0;
 
 pthread_t fm_thread;
 pthread_mutex_t cb_mutex;
@@ -176,8 +177,11 @@ static void *tx_worker_thread(void *arg)
 	// fill the transmit buffer with sine values
 	dds_real_buf(&gCarrierDds, gTransmitBuffer, FL2K_BUF_LEN);
 	
-	while (!gUserCancelled) {
+	while (!gUserCancelled && !gTransmitTimeExpired) {
 		// stay in this thread until they ^C out
+		if(gTransmitTimeExpired) {
+			fprintf(stderr, "tx_worker_thread transmit time expired\n");
+		}
 	}
 
 	pthread_exit(NULL);
@@ -356,6 +360,7 @@ int main(int argc, char **argv)
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
 				
 				gCarrierFrequency = frequency;
+				gTransmitTimeExpired = 0;
 				dds_start(frequency);
 				// keep going until cancelled or time expired
 				if(gDidSpecifyTime) {
@@ -364,6 +369,7 @@ int main(int argc, char **argv)
 					while(nowMs < finishMs && !gUserCancelled) {
 						nowMs = current_miliseconds();
 					}
+					gTransmitTimeExpired = 1;
 					fprintf(stderr, "time expired\n");
 					gStartTimeMs = current_miliseconds();
 					finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
