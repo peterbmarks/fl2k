@@ -82,6 +82,7 @@ static void sighandler(int signum)
 	fprintf(stderr, "Signal caught, exiting!\n");
 	dds_stop();
 	gUserCancelled = 1;
+	exit(0);
 }
 
 /* DDS Functions */
@@ -336,7 +337,9 @@ int main(int argc, char **argv)
 	}
 	fprintf(stderr, "Opened device\n");
 	
-	dds_start((double)gCarrierFrequency);
+	if(frequencyFile == 0) {
+		dds_start((double)gCarrierFrequency);
+	}
 
 	gStartTimeMs = current_miliseconds();
 	long long finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
@@ -348,7 +351,6 @@ int main(int argc, char **argv)
 	
 	while (!gUserCancelled) {
 		if(frequencyFile) {
-			dds_stop();
 			while(read = getline(&line, &len, frequencyFile) != -1 && !gUserCancelled) {
 				double frequency = atof(line);
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
@@ -365,10 +367,11 @@ int main(int argc, char **argv)
 					fprintf(stderr, "time expired\n");
 					gStartTimeMs = current_miliseconds();
 					finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
+					dds_stop();
 				}
 			} 
 			fprintf(stderr, "End of TX file\n");
-			fl2k_stop_tx(gFl2kDevice);
+			dds_stop();
 			gUserCancelled = 1;
 		}
 	}
