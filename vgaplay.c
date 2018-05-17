@@ -43,13 +43,13 @@ typedef struct {
 	unsigned long int phase_slope;
 } dds_t;
 
-fl2k_dev_t *gFl2kDevice = NULL;
+fl2k_dev_t *gFl2kDevicePtr = NULL;
 dds_t gCarrierDds;
 
 int gUserCancelled = 0;
 int gTransmitTimeExpired = 0;
 
-pthread_t fm_thread;
+pthread_t gWorkerThread;
 pthread_mutex_t cb_mutex;
 pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
@@ -58,9 +58,10 @@ int8_t *gTransmitBuffer = NULL;
 
 uint32_t gSampleRate = 150000000;
 int gCarrierFrequency = 7159000;
-double gTimeOfTx;
+double gDurationOfEachTx;
 int gDidSpecifyTime = 0;
 long long gStartTimeMs;
+uint32_t gFl2kDeviceIndex = 0;
 
 void usage(void)
 {
@@ -169,7 +170,7 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 
 /* Generate the radio signal using the pre-calculated frequency information
  * in the freq buffer */
- // This runs in the fm_thread and modulates the carrier frequency
+ // This runs in the gWorkerThread and modulates the carrier frequency
 static void *tx_worker_thread(void *arg)
 {
 	// Prepare the DDS oscillator
@@ -183,7 +184,7 @@ static void *tx_worker_thread(void *arg)
 			fprintf(stderr, "tx_worker_thread transmit time expired\n");
 		}
 	}
-
+	fprintf(stderr, "tx_worker_thread ending\n");
 	pthread_exit(NULL);
 }
 
@@ -213,28 +214,36 @@ void dds_start(double frequency) {
 	pthread_attr_t attr;
 	struct sigaction sigact, sigign;
 	
+	fl2k_open(&gFl2kDevicePtr, gFl2kDeviceIndex);
+	
+	if (NULL == gFl2kDevicePtr) {
+		fprintf(stderr, "Failed to open fl2k device #%d.\n", gFl2kDeviceIndex);
+		exit(0);
+	}
+	fprintf(stderr, "Opened device\n");
+
 	fprintf(stderr, "dds_start(%f)\n", frequency);
 	pthread_mutex_init(&cb_mutex, NULL);
 	pthread_cond_init(&cb_cond, NULL);
 	pthread_attr_init(&attr);
 	
-	r = pthread_create(&fm_thread, &attr, tx_worker_thread, NULL);
+	r = pthread_create(&gWorkerThread, &attr, tx_worker_thread, NULL);
 	if (r < 0) {
 		fprintf(stderr, "Error spawning TX worker thread!\n");
 		return;
 	}
 
 	pthread_attr_destroy(&attr);
-	r = fl2k_start_tx(gFl2kDevice, fl2k_callback, NULL, 0);
+	r = fl2k_start_tx(gFl2kDevicePtr, fl2k_callback, NULL, 0);
 
 	// Set the sample rate
-	r = fl2k_set_sample_rate(gFl2kDevice, gSampleRate);
+	r = fl2k_set_sample_rate(gFl2kDevicePtr, gSampleRate);
 	if (r < 0) {
 		fprintf(stderr, "WARNING: Failed to set sample rate. %d\n", r);
 	}
 
 	/* read back actual frequency */
-	gSampleRate = fl2k_get_sample_rate(gFl2kDevice);
+	gSampleRate = fl2k_get_sample_rate(gFl2kDevicePtr);
 	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
 
 	dds_set_freq(&gCarrierDds, frequency, 0.0);
@@ -251,14 +260,13 @@ void dds_start(double frequency) {
 
 void dds_stop() {
 	fprintf(stderr, "dds_stop()\n");
-	fl2k_stop_tx(gFl2kDevice);
-	pthread_cancel(fm_thread);
+	fl2k_stop_tx(gFl2kDevicePtr);
+	fl2k_close(gFl2kDevicePtr);
 }
 
 int main(int argc, char **argv)
 {
 	int opt;
-	int dev_index = 0;
 	
 	int option_index = 0;
 	FILE *frequencyFile = NULL;
@@ -283,7 +291,7 @@ int main(int argc, char **argv)
 		case 0:
 			break;
 		case 'd':
-			dev_index = (uint32_t)atoi(optarg);
+			gFl2kDeviceIndex = (uint32_t)atoi(optarg);
 			break;
 		case 'c':
 			gCarrierFrequency = (uint32_t)atof(optarg);
@@ -292,7 +300,7 @@ int main(int argc, char **argv)
 			gSampleRate = (uint32_t)atof(optarg);
 			break;
 		case 't':
-			gTimeOfTx = (double)atof(optarg);
+			gDurationOfEachTx = (double)atof(optarg);
 			gDidSpecifyTime = 1;
 			break;
 		case 'f':
@@ -308,7 +316,7 @@ int main(int argc, char **argv)
 		usage();
 	}
 
-	if (dev_index < 0) {
+	if (gFl2kDeviceIndex < 0) {
 		exit(1);
 	}
 
@@ -323,7 +331,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
 	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
 	if(gDidSpecifyTime) {
-		fprintf(stderr, "Time of TX:\t%f seconds\n", gTimeOfTx);
+		fprintf(stderr, "Time of TX:\t%f seconds\n", gDurationOfEachTx);
 	}
 	if(strlen(frequencyFileName) > 3) {
 		fprintf(stderr, "Frequency file: %s\n", frequencyFileName);
@@ -332,21 +340,13 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Error opening file: %s\n", frequencyFileName);
 		}
 	}
-	
-	fl2k_open(&gFl2kDevice, (uint32_t)dev_index);
-	
-	if (NULL == gFl2kDevice) {
-		fprintf(stderr, "Failed to open fl2k device #%d.\n", dev_index);
-		goto out;
-	}
-	fprintf(stderr, "Opened device\n");
-	
+		
 	if(frequencyFile == 0) {
 		dds_start((double)gCarrierFrequency);
 	}
 
 	gStartTimeMs = current_miliseconds();
-	long long finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
+	long long finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
 	fprintf(stderr, "start ms = %lld until: %lld\n", gStartTimeMs, finishMs);
 	
 	char * line = NULL;
@@ -372,7 +372,7 @@ int main(int argc, char **argv)
 					gTransmitTimeExpired = 1;
 					fprintf(stderr, "time expired\n");
 					gStartTimeMs = current_miliseconds();
-					finishMs = gStartTimeMs + (gTimeOfTx * 1000.0);
+					finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
 					dds_stop();
 				}
 			} 
