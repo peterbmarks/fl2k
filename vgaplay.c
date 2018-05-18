@@ -40,7 +40,7 @@ typedef struct {
 	double fslope;
 	unsigned long int phase;
 	unsigned long int phase_step;
-	unsigned long int phase_slope;
+	//unsigned long int phase_slope;
 } dds_t;
 
 fl2k_dev_t *gFl2kDevicePtr = NULL;
@@ -115,12 +115,9 @@ void dds_set_freq(dds_t *dds, double freq, double fslope)
 	fprintf(stderr, "dds_set_freq(%f\n", freq);
 	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
-
-	/* The slope parameter is used with the FM modulator to create
-	 * a simple but very fast and effective interpolation filter.
-	 * See the fm modulator for details */
+  fprintf(stderr, "dds->sample_freq = %f, dds->phase_step = %lu\n", dds->sample_freq, dds->phase_step);
 	dds->freq = freq;
-	dds->phase_slope = (fslope / dds->sample_freq) * 2 * M_PI * ANG_INCR;
+	//dds->phase_slope = (fslope / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 }
 
 dds_t dds_init(double sample_freq, double freq, double phase)
@@ -135,9 +132,10 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	// Initialize sine table, prescaled for 8 bit signed integer
 	if (!gSineTableInitialised) {
 		double incr = 1.0 / (double)SIN_TABLE_LEN;
-		for (i = 0; i < SIN_TABLE_LEN; i++)
+    for (i = 0; i < SIN_TABLE_LEN; i++) {
 			gSineTable[i] = sin(incr * i * DDS_2PI) * 127;
-
+      // fprintf(stderr, "sine table value %d = %d\n", i, gSineTable[i]);
+    }
 		gSineTableInitialised = 1;
 	}
 
@@ -153,7 +151,7 @@ int8_t dds_real(dds_t *dds)
 	dds->phase += dds->phase_step;
 	dds->phase &= 0xffffffff;
 
-	dds->phase_step += dds->phase_slope;
+	// dds->phase_step += dds->phase_slope;
 
 	return gSineTable[tmp];
 }

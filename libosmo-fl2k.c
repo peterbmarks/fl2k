@@ -378,7 +378,7 @@ int fl2k_open(fl2k_dev_t **out_dev, uint32_t index)
 		return -1;
 	}
 
-	// libusb_set_debug(dev->ctx, 3);
+	libusb_set_debug(dev->ctx, 3);
 
 	dev->dev_lost = 1;
 
