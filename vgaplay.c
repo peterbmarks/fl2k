@@ -37,7 +37,6 @@ void dds_stop();
 typedef struct {
 	double sample_freq;
 	double freq;
-	double fslope;
 	unsigned long int phase;
 	unsigned long int phase_step;
 	//unsigned long int phase_slope;
@@ -50,7 +49,7 @@ int gUserCancelled = 0;
 int gTransmitTimeExpired = 0;
 
 pthread_t gWorkerThread;
-pthread_mutex_t cb_mutex;
+//pthread_mutex_t cb_mutex;
 pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
 
@@ -110,14 +109,12 @@ int gSineTableInitialised = 0;
 
 
 // was inline 
-void dds_set_freq(dds_t *dds, double freq, double fslope)
+void dds_set_freq(dds_t *dds, double freq)
 {
 	fprintf(stderr, "dds_set_freq(%f\n", freq);
-	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
-  fprintf(stderr, "dds->sample_freq = %f, dds->phase_step = %lu\n", dds->sample_freq, dds->phase_step);
+	fprintf(stderr, "dds->sample_freq = %f, dds->phase_step = %lu\n", dds->sample_freq, dds->phase_step);
 	dds->freq = freq;
-	//dds->phase_slope = (fslope / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 }
 
 dds_t dds_init(double sample_freq, double freq, double phase)
@@ -127,7 +124,7 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 
 	dds.sample_freq = sample_freq;
 	dds.phase = phase * ANG_INCR;
-	dds_set_freq(&dds, freq, 0);
+	// dds_set_freq(&dds, freq, 0);
 
 	// Initialize sine table, prescaled for 8 bit signed integer
 	if (!gSineTableInitialised) {
@@ -145,13 +142,9 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 // return the next value from the sine table and increment the step
 int8_t dds_real(dds_t *dds)
 {
-	int tmp;
-
-	tmp = dds->phase >> SIN_TABLE_SHIFT;
+	int tmp = dds->phase >> SIN_TABLE_SHIFT;
 	dds->phase += dds->phase_step;
 	dds->phase &= 0xffffffff;
-
-	// dds->phase_step += dds->phase_slope;
 
 	return gSineTable[tmp];
 }
@@ -159,9 +152,9 @@ int8_t dds_real(dds_t *dds)
 // copy count sine samples from sine table into buf 
 void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 {
-	int i;
-	for (i = 0; i < count; i++)
+	for (int i = 0; i < count; i++) {
 		buf[i] = dds_real(dds);
+	}
 }
 
 /* Signal generation and some helpers */
@@ -221,7 +214,7 @@ void dds_start(double frequency) {
 	fprintf(stderr, "Opened device\n");
 
 	fprintf(stderr, "dds_start(%f)\n", frequency);
-	pthread_mutex_init(&cb_mutex, NULL);
+	//pthread_mutex_init(&cb_mutex, NULL);
 	pthread_cond_init(&cb_cond, NULL);
 	pthread_attr_init(&attr);
 	
@@ -244,7 +237,7 @@ void dds_start(double frequency) {
 	gSampleRate = fl2k_get_sample_rate(gFl2kDevicePtr);
 	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
 
-	dds_set_freq(&gCarrierDds, frequency, 0.0);
+	dds_set_freq(&gCarrierDds, frequency);
 	
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -335,7 +328,7 @@ int main(int argc, char **argv)
 		}
 	}
 		
-	if(frequencyFile == 0) {
+	if(!frequencyFile) {
 		dds_start((double)gCarrierFrequency);
 	}
 
