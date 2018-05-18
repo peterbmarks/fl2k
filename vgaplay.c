@@ -115,11 +115,11 @@ void dds_set_freq(dds_t *dds, double freq, double fslope)
 	fprintf(stderr, "dds_set_freq(%f\n", freq);
 	dds->fslope = fslope;
 	dds->phase_step = (freq / dds->sample_freq) * 2 * M_PI * ANG_INCR;
-  fprintf(stderr, "dds->sample_freq = %f, dds->phase_step = %lu\n", dds->sample_freq, dds->phase_step);
+	fprintf(stderr, "dds->sample_freq = %f, dds->phase_step = %lu\n", dds->sample_freq, dds->phase_step);
 	dds->freq = freq;
-	//dds->phase_slope = (fslope / dds->sample_freq) * 2 * M_PI * ANG_INCR;
 }
 
+// write sine values to the gSineTable
 dds_t dds_init(double sample_freq, double freq, double phase)
 {
 	dds_t dds;
@@ -132,10 +132,10 @@ dds_t dds_init(double sample_freq, double freq, double phase)
 	// Initialize sine table, prescaled for 8 bit signed integer
 	if (!gSineTableInitialised) {
 		double incr = 1.0 / (double)SIN_TABLE_LEN;
-    for (i = 0; i < SIN_TABLE_LEN; i++) {
+		for (i = 0; i < SIN_TABLE_LEN; i++) {
 			gSineTable[i] = sin(incr * i * DDS_2PI) * 127;
       // fprintf(stderr, "sine table value %d = %d\n", i, gSineTable[i]);
-    }
+		}
 		gSineTableInitialised = 1;
 	}
 
@@ -151,17 +151,14 @@ int8_t dds_real(dds_t *dds)
 	dds->phase += dds->phase_step;
 	dds->phase &= 0xffffffff;
 
-	// dds->phase_step += dds->phase_slope;
-
 	return gSineTable[tmp];
 }
 
 // copy count sine samples from sine table into buf 
-void dds_real_buf(dds_t *dds, int8_t *buf, int count)
-{
-	int i;
-	for (i = 0; i < count; i++)
+void dds_real_buf(dds_t *dds, int8_t *buf, int count) {
+	for (int i = 0; i < count; i++) {
 		buf[i] = dds_real(dds);
+	}
 }
 
 /* Signal generation and some helpers */
@@ -194,6 +191,8 @@ void fl2k_callback(fl2k_data_info_t *data_info)
 	}
 
 	pthread_cond_signal(&cb_cond);
+	// unblock at least one of the threads that are blocked on the 
+	// specified condition variable cond (if any threads are blocked on cond).
 
 	data_info->sampletype_signed = 1;
 	data_info->r_buf = (char *)gTransmitBuffer;	// in to red channel buffer
@@ -244,7 +243,7 @@ void dds_start(double frequency) {
 	gSampleRate = fl2k_get_sample_rate(gFl2kDevicePtr);
 	fprintf(stderr, "Actual sample rate = %d\n", gSampleRate);
 
-	dds_set_freq(&gCarrierDds, frequency, 0.0);
+	//dds_set_freq(&gCarrierDds, frequency, 0.0);
 	
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -260,6 +259,13 @@ void dds_stop() {
 	fprintf(stderr, "dds_stop()\n");
 	fl2k_stop_tx(gFl2kDevicePtr);
 	fl2k_close(gFl2kDevicePtr);
+}
+
+void dds_change_frequency(double frequency) {
+	fprintf(stderr, "dds_change_frequency(%f)\n", frequency);
+	dds_set_freq(&gCarrierDds, frequency, 0);
+	// rebuild the transmit buffer
+	dds_real_buf(&gCarrierDds, gTransmitBuffer, FL2K_BUF_LEN);
 }
 
 int main(int argc, char **argv)
@@ -335,9 +341,9 @@ int main(int argc, char **argv)
 		}
 	}
 		
-	if(frequencyFile == 0) {
+	//if(frequencyFile == 0) {
 		dds_start((double)gCarrierFrequency);
-	}
+	//}
 
 	gStartTimeMs = current_miliseconds();
 	long long finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
@@ -352,12 +358,10 @@ int main(int argc, char **argv)
 	while (!gUserCancelled) {
 		if(frequencyFile) {
 			while((read = getline(&line, &len, frequencyFile)) != -1 && !gUserCancelled) {
-				double frequency = atof(line);
-				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
-				
-				gCarrierFrequency = frequency;
+				gCarrierFrequency = atof(line);
+				fprintf(stderr, "Read frequency = %f from file.\n", (double)gCarrierFrequency);
 				gTransmitTimeExpired = 0;
-				dds_start(frequency);
+				dds_change_frequency(gCarrierFrequency);
 				// keep going until cancelled or time expired
 				if(gDidSpecifyTime) {
 					long long nowMs = current_miliseconds();
@@ -369,11 +373,9 @@ int main(int argc, char **argv)
 					fprintf(stderr, "time expired\n");
 					gStartTimeMs = current_miliseconds();
 					finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
-					dds_stop();
 				}
 			} 
 			fprintf(stderr, "End of TX file\n");
-			dds_stop();
 			gUserCancelled = 1;
 		}
 	}
