@@ -48,7 +48,7 @@ dds_t gCarrierDds;
 int gUserCancelled = 0;
 int gTransmitTimeExpired = 0;
 
-pthread_t gWorkerThread;
+pthread_t gTxWorkerThread;
 //pthread_mutex_t cb_mutex;
 pthread_mutex_t fm_mutex;
 pthread_cond_t cb_cond;
@@ -161,7 +161,7 @@ void dds_real_buf(dds_t *dds, int8_t *buf, int count)
 
 /* Generate the radio signal using the pre-calculated frequency information
  * in the freq buffer */
- // This runs in the gWorkerThread and modulates the carrier frequency
+ // This runs in the gTxWorkerThread and modulates the carrier frequency
 static void *tx_worker_thread(void *arg)
 {
 	// Prepare the DDS oscillator
@@ -169,11 +169,8 @@ static void *tx_worker_thread(void *arg)
 	// fill the transmit buffer with sine values
 	dds_real_buf(&gCarrierDds, gTransmitBuffer, FL2K_BUF_LEN);
 	
-	while (!gUserCancelled && !gTransmitTimeExpired) {
+	while (!gUserCancelled) {
 		// stay in this thread until they ^C out
-		if(gTransmitTimeExpired) {
-			fprintf(stderr, "tx_worker_thread transmit time expired\n");
-		}
 	}
 	fprintf(stderr, "tx_worker_thread ending\n");
 	pthread_exit(NULL);
@@ -218,14 +215,14 @@ void dds_start(double frequency) {
 	pthread_cond_init(&cb_cond, NULL);
 	pthread_attr_init(&attr);
 	
-	r = pthread_create(&gWorkerThread, &attr, tx_worker_thread, NULL);
+	r = pthread_create(&gTxWorkerThread, &attr, tx_worker_thread, NULL);
 	if (r < 0) {
 		fprintf(stderr, "Error spawning TX worker thread!\n");
 		return;
 	}
 
 	pthread_attr_destroy(&attr);
-	r = fl2k_start_tx(gFl2kDevicePtr, fl2k_callback, NULL, 0);
+	// r = fl2k_start_tx(gFl2kDevicePtr, fl2k_callback, NULL, 0);
 
 	// Set the sample rate
 	r = fl2k_set_sample_rate(gFl2kDevicePtr, gSampleRate);
@@ -328,8 +325,9 @@ int main(int argc, char **argv)
 		}
 	}
 		
+	dds_start((double)gCarrierFrequency);
 	if(!frequencyFile) {
-		dds_start((double)gCarrierFrequency);
+		fl2k_start_tx(gFl2kDevicePtr, fl2k_callback, NULL, 0);
 	}
 
 	gStartTimeMs = current_miliseconds();
@@ -349,8 +347,9 @@ int main(int argc, char **argv)
 				fprintf(stderr, "Read frequency = %f from file.\n", frequency);
 				
 				gCarrierFrequency = frequency;
+				dds_set_freq(&gCarrierDds, frequency);
 				gTransmitTimeExpired = 0;
-				dds_start(frequency);
+				fl2k_start_tx(gFl2kDevicePtr, fl2k_callback, NULL, 0);
 				// keep going until cancelled or time expired
 				if(gDidSpecifyTime) {
 					long long nowMs = current_miliseconds();
@@ -362,7 +361,7 @@ int main(int argc, char **argv)
 					fprintf(stderr, "time expired\n");
 					gStartTimeMs = current_miliseconds();
 					finishMs = gStartTimeMs + (gDurationOfEachTx * 1000.0);
-					dds_stop();
+					fl2k_stop_tx(gFl2kDevicePtr);
 				}
 			} 
 			fprintf(stderr, "End of TX file\n");
