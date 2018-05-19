@@ -57,7 +57,7 @@ pthread_cond_t cb_cond;
 int8_t *gTransmitBuffer = NULL;
 
 uint32_t gSampleRate = 150000000;
-int gCarrierFrequency = 7159000;
+double gCarrierFrequency = 7159000;
 double gDurationOfEachTx;
 int gDidSpecifyTime = 0;
 long long gStartTimeMs;
@@ -298,7 +298,7 @@ int main(int argc, char **argv)
 			gFl2kDeviceIndex = (uint32_t)atoi(optarg);
 			break;
 		case 'c':
-			gCarrierFrequency = (uint32_t)atof(optarg);
+			gCarrierFrequency = atof(optarg);
 			break;
 		case 's':
 			gSampleRate = (uint32_t)atof(optarg);
@@ -329,7 +329,7 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Sine table length: %d\n", SIN_TABLE_LEN);
 	fprintf(stderr, "Samplerate:\t%3.2f MHz\n", (double)gSampleRate/1000000);
-	fprintf(stderr, "Carrier:\t%3.2f MHz\n", (double)gCarrierFrequency/1000000);
+	fprintf(stderr, "Carrier:\t%3.2f MHz\n", gCarrierFrequency/1000000.0);
 	if(gDidSpecifyTime) {
 		fprintf(stderr, "Time of TX:\t%f seconds\n", gDurationOfEachTx);
 	}
@@ -342,7 +342,7 @@ int main(int argc, char **argv)
 	}
 		
 	//if(frequencyFile == 0) {
-		dds_start((double)gCarrierFrequency);
+		dds_start(gCarrierFrequency);
 	//}
 
 	gStartTimeMs = current_miliseconds();
@@ -359,7 +359,7 @@ int main(int argc, char **argv)
 		if(frequencyFile) {
 			while((read = getline(&line, &len, frequencyFile)) != -1 && !gUserCancelled) {
 				gCarrierFrequency = atof(line);
-				fprintf(stderr, "Read frequency = %f from file.\n", (double)gCarrierFrequency);
+				fprintf(stderr, "Read frequency = %f from file.\n", gCarrierFrequency);
 				gTransmitTimeExpired = 0;
 				dds_change_frequency(gCarrierFrequency);
 				// keep going until cancelled or time expired
