@@ -27,10 +27,18 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=0
-FILE_NAME_0=6622;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Fvgaplay.c;0;4
-FILE_NAME_1=21367;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Flibosmo-fl2k.c;0;4
-FILE_NAME_2=3503;Python;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Fwspr_encode.py;0;4
+current_page=1
+FILE_NAME_0=8528;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Fvgaplay.c;0;4
+FILE_NAME_1=18951;C;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Flibosmo-fl2k.c;0;4
+FILE_NAME_2=2817;Python;0;EUTF-8;1;1;0;%2Fhome%2Fmarksp%2FDeveloper%2Ffl2k%2Fwspr_encode.py;0;4
 
 [VTE]
 last_dir=/home/marksp
+
+[prjorg]
+source_patterns=*.c;*.C;*.cpp;*.cxx;*.c++;*.cc;*.m;
+header_patterns=*.h;*.H;*.hpp;*.hxx;*.h++;*.hh;
+ignored_dirs_patterns=.*;CVS;
+ignored_file_patterns=*.o;*.obj;*.a;*.lib;*.so;*.dll;*.lo;*.la;*.class;*.jar;*.pyc;*.mo;*.gmo;
+generate_tag_prefs=0
+external_dirs=
