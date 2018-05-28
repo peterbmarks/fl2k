@@ -35,7 +35,7 @@ void makeCarrier(int samplesPerCycle) {
 // Produces an AM'd signal suitable for fl2k_file
 void makeAm(int samplesPerCycle) {
     // ratio of the carrier to the modulating sine wave
-    int ratio = 100;
+    int ratio = 3000;
 
     FILE *outfile = fopen(outFileName, "wb");
     // make sure we get enough samples for a full wave of the modulation
@@ -44,7 +44,7 @@ void makeAm(int samplesPerCycle) {
 		double carrier_radian = fmod((M_PI * sample * 2 / samplesPerCycle),(M_PI * 2));
         double mod_radian = fmod((M_PI * sample * 2 / samplesPerCycle) / ratio,(M_PI * 2));
         
-		printf("%03d carrier r = %f, mod r = %f\n", sample, carrier_radian, mod_radian);
+		//printf("%03d carrier r = %f, mod r = %f\n", sample, carrier_radian, mod_radian);
 
         double carrier_sin_value = sin(carrier_radian);
         double mod_sin_value = sin(mod_radian);
